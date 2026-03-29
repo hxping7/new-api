@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -26,6 +28,11 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	// If using coding plan with Claude format, use claude adaptor for proper request conversion
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertClaudeRequest(c, info, req)
+	}
 	adaptor := openai.Adaptor{}
 	return adaptor.ConvertClaudeRequest(c, info, req)
 }
@@ -44,17 +51,41 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseUrl := info.ChannelBaseUrl
+	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
+	// Handle Claude format for coding plan
+	if info.RelayFormat == types.RelayFormatClaude {
+		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
+		}
+	}
+	// Handle OpenAI format
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
-		return fmt.Sprintf("%s/v2/chat/completions", info.ChannelBaseUrl), nil
+		if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
+		}
+		return fmt.Sprintf("%s/v2/chat/completions", baseUrl), nil
 	case constant.RelayModeEmbeddings:
-		return fmt.Sprintf("%s/v2/embeddings", info.ChannelBaseUrl), nil
+		if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/embeddings", specialPlan.OpenAIBaseURL), nil
+		}
+		return fmt.Sprintf("%s/v2/embeddings", baseUrl), nil
 	case constant.RelayModeImagesGenerations:
-		return fmt.Sprintf("%s/v2/images/generations", info.ChannelBaseUrl), nil
+		if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/images/generations", specialPlan.OpenAIBaseURL), nil
+		}
+		return fmt.Sprintf("%s/v2/images/generations", baseUrl), nil
 	case constant.RelayModeImagesEdits:
-		return fmt.Sprintf("%s/v2/images/edits", info.ChannelBaseUrl), nil
+		if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/images/edits", specialPlan.OpenAIBaseURL), nil
+		}
+		return fmt.Sprintf("%s/v2/images/edits", baseUrl), nil
 	case constant.RelayModeRerank:
-		return fmt.Sprintf("%s/v2/rerank", info.ChannelBaseUrl), nil
+		if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+			return fmt.Sprintf("%s/rerank", specialPlan.OpenAIBaseURL), nil
+		}
+		return fmt.Sprintf("%s/v2/rerank", baseUrl), nil
 	default:
 	}
 	return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
@@ -116,6 +147,13 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	// If using coding plan with Claude format, use claude adaptor for proper response handling
+	if info.RelayFormat == types.RelayFormatClaude {
+		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+			adaptor := claude.Adaptor{}
+			return adaptor.DoResponse(c, resp, info)
+		}
+	}
 	adaptor := openai.Adaptor{}
 	usage, err = adaptor.DoResponse(c, resp, info)
 	return

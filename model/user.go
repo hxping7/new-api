@@ -50,6 +50,7 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	CanManageChannels bool         `json:"can_manage_channels" gorm:"type:bool;default:false"` // 是否允许管理自己的渠道
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -520,11 +521,12 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"quota":        newUser.Quota,
-		"remark":       newUser.Remark,
+		"username":            newUser.Username,
+		"display_name":        newUser.DisplayName,
+		"group":               newUser.Group,
+		"quota":               newUser.Quota,
+		"remark":              newUser.Remark,
+		"can_manage_channels": newUser.CanManageChannels,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

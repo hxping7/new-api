@@ -51,6 +51,16 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
+			// 检查用户是否有权限使用该渠道
+			userId := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+			if channel.UserId != nil && *channel.UserId != userId {
+				// 用户不是管理员，检查是否有权限使用该渠道
+				user, err := model.GetUserById(userId, false)
+				if err != nil || user.Role < 10 {
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelNoPermission))
+					return
+				}
+			}
 		} else {
 			// Select a channel for the user
 			// check token model mapping
@@ -128,11 +138,13 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if channel == nil {
+					userId := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
 						Ctx:        c,
 						ModelName:  modelRequest.Model,
 						TokenGroup: usingGroup,
 						Retry:      common.GetPointer(0),
+						UserId:     userId,
 					})
 					if err != nil {
 						showGroup := usingGroup

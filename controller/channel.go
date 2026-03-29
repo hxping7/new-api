@@ -85,6 +85,17 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
 	var total int64
 
 	if enableTagMode {
@@ -104,6 +115,9 @@ func GetAllChannels(c *gin.Context) {
 			}
 			filtered := make([]*model.Channel, 0)
 			for _, ch := range tagChannels {
+				if !canManageAll && ch.UserId != nil && *ch.UserId != userId {
+					continue
+				}
 				if statusFilter == common.ChannelStatusEnabled && ch.Status != common.ChannelStatusEnabled {
 					continue
 				}
@@ -120,6 +134,9 @@ func GetAllChannels(c *gin.Context) {
 		total, _ = model.CountAllTags()
 	} else {
 		baseQuery := model.DB.Model(&model.Channel{})
+		if !canManageAll {
+			baseQuery = baseQuery.Where("user_id IS NULL OR user_id = ?", userId)
+		}
 		if typeFilter >= 0 {
 			baseQuery = baseQuery.Where("type = ?", typeFilter)
 		}
@@ -253,6 +270,18 @@ func SearchChannels(c *gin.Context) {
 	statusFilter := parseStatusFilter(statusParam)
 	idSort, _ := strconv.ParseBool(c.Query("id_sort"))
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
+	
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+	
 	channelData := make([]*model.Channel, 0)
 	if enableTagMode {
 		tags, err := model.SearchTags(keyword, group, modelKeyword, idSort)
@@ -281,6 +310,17 @@ func SearchChannels(c *gin.Context) {
 			return
 		}
 		channelData = channels
+	}
+
+	// 过滤用户无权查看的渠道
+	if !canManageAll {
+		filtered := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if ch.UserId == nil || *ch.UserId == userId {
+				filtered = append(filtered, ch)
+			}
+		}
+		channelData = filtered
 	}
 
 	if statusFilter == common.ChannelStatusEnabled || statusFilter == 0 {
@@ -364,11 +404,32 @@ func GetChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+	
 	channel, err := model.GetChannelById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	
+	if !canManageAll && channel.UserId != nil && *channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限查看此渠道",
+		})
+		return
+	}
+	
 	if channel != nil {
 		clearChannelInfo(channel)
 	}
@@ -571,6 +632,29 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
+	if !canManageAll && addChannelRequest.Channel.UserId != nil && *addChannelRequest.Channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限为其他用户添加渠道",
+		})
+		return
+	}
+
+	if !canManageAll && addChannelRequest.Channel.UserId == nil {
+		addChannelRequest.Channel.UserId = &userId
+	}
+
 	// 使用统一的校验函数
 	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -666,7 +750,36 @@ func AddChannel(c *gin.Context) {
 func DeleteChannel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	channel := model.Channel{Id: id}
-	err := channel.Delete()
+	
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+	
+	originChannel, err := model.GetChannelById(id, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "获取渠道信息失败",
+		})
+		return
+	}
+	
+	if !canManageAll && originChannel.UserId != nil && *originChannel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限删除此渠道",
+		})
+		return
+	}
+	
+	err = channel.Delete()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -819,6 +932,39 @@ func DeleteChannelBatch(c *gin.Context) {
 		})
 		return
 	}
+	
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+	
+	// 检查所有渠道是否都属于当前用户或系统共享
+	if !canManageAll {
+		for _, id := range channelBatch.Ids {
+			channel, err := model.GetChannelById(id, true)
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "获取渠道信息失败",
+				})
+				return
+			}
+			if channel.UserId != nil && *channel.UserId != userId {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("无权限删除渠道 ID: %d", id),
+				})
+				return
+			}
+		}
+	}
+	
 	err = model.BatchDeleteChannels(channelBatch.Ids)
 	if err != nil {
 		common.ApiError(c, err)
@@ -847,6 +993,46 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
+	originChannel, err := model.GetChannelById(channel.Id, true)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if !canManageAll && originChannel.UserId != nil && *originChannel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限编辑此渠道",
+		})
+		return
+	}
+
+	if !canManageAll && channel.UserId != nil && *channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限将渠道分配给其他用户",
+		})
+		return
+	}
+
+	if !canManageAll && channel.UserId == nil {
+		channel.UserId = &userId
+	}
+
 	// 使用统一的校验函数
 	if err := validateChannel(&channel.Channel, false); err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -855,8 +1041,7 @@ func UpdateChannel(c *gin.Context) {
 		})
 		return
 	}
-	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
-	originChannel, err := model.GetChannelById(channel.Id, true)
+	originChannel, err = model.GetChannelById(channel.Id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -1176,11 +1361,27 @@ func CopyChannel(c *gin.Context) {
 		}
 	}
 
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
 	// fetch original channel with key
 	origin, err := model.GetChannelById(id, true)
 	if err != nil {
 		common.SysError("failed to get channel by id: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道信息失败，请稍后重试"})
+		return
+	}
+
+	if !canManageAll && origin.UserId != nil && *origin.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "无权限复制此渠道"})
 		return
 	}
 
@@ -1194,6 +1395,10 @@ func CopyChannel(c *gin.Context) {
 	if resetBalance {
 		clone.Balance = 0
 		clone.UsedQuota = 0
+	}
+
+	if !canManageAll {
+		clone.UserId = &userId
 	}
 
 	// insert
@@ -1252,6 +1457,25 @@ func ManageMultiKeys(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "渠道不存在",
+		})
+		return
+	}
+
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
+	if !canManageAll && channel.UserId != nil && *channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限管理此渠道的多密钥",
 		})
 		return
 	}

@@ -92,6 +92,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
+	session.Set("can_manage_channels", user.CanManageChannels)
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
@@ -101,12 +102,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 		"message": "",
 		"success": true,
 		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
+			"id":                    user.Id,
+			"username":              user.Username,
+			"display_name":          user.DisplayName,
+			"role":                  user.Role,
+			"status":                user.Status,
+			"group":                 user.Group,
+			"can_manage_channels":   user.CanManageChannels,
 		},
 	})
 }

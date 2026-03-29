@@ -737,6 +737,18 @@ func TestChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+	
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		channel, err = model.GetChannelById(channelId, true)
@@ -745,6 +757,15 @@ func TestChannel(c *gin.Context) {
 			return
 		}
 	}
+	
+	if !canManageAll && channel.UserId != nil && *channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限测试此渠道",
+		})
+		return
+	}
+	
 	//defer func() {
 	//	if channel.ChannelInfo.IsMultiKey {
 	//		go func() { _ = channel.SaveChannelInfo() }()

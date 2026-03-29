@@ -21,6 +21,7 @@ type Ability struct {
 	Priority  *int64  `json:"priority" gorm:"bigint;default:0;index"`
 	Weight    uint    `json:"weight" gorm:"default:0;index"`
 	Tag       *string `json:"tag" gorm:"index"`
+	UserId    *int    `json:"user_id" gorm:"index"` // 渠道所属用户ID，nil表示系统共享渠道
 }
 
 type AbilityWithChannel struct {
@@ -88,7 +89,7 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
-func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
+func getChannelQuery(group string, model string, retry int, userId int) (*gorm.DB, error) {
 	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
 	if retry != 0 {
@@ -100,14 +101,19 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 		}
 	}
 
+	// 添加用户ID过滤：用户只能使用自己的渠道或共享渠道（UserId为nil）
+	if userId > 0 {
+		channelQuery = channelQuery.Where("user_id IS NULL OR user_id = ?", userId)
+	}
+
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, userId int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	channelQuery, err := getChannelQuery(group, model, retry, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +169,7 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 				Priority:  channel.Priority,
 				Weight:    uint(channel.GetWeight()),
 				Tag:       channel.Tag,
+				UserId:    channel.UserId,
 			}
 			abilities = append(abilities, ability)
 		}

@@ -166,6 +166,29 @@ func RootAuth() func(c *gin.Context) {
 	}
 }
 
+func ChannelManagerAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		authHelper(c, common.RoleCommonUser)
+		userId := c.GetInt("id")
+		canManageAll := false
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil && user.Role == common.RoleRootUser {
+			canManageAll = true
+		} else if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+		if !canManageAll {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "无权限管理渠道",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 func WssAuth(c *gin.Context) {
 
 }

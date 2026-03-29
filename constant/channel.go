@@ -206,4 +206,8 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
 	},
+	"qianfan-coding-plan": {
+		ClaudeBaseURL: "https://qianfan.baidubce.com/anthropic/coding",
+		OpenAIBaseURL: "https://qianfan.baidubce.com/v2/coding",
+	},
 }

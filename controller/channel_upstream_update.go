@@ -291,6 +291,12 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeBaiduV2:
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
+		} else {
+			url = fmt.Sprintf("%s/v2/models", baseURL)
+		}
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
@@ -674,11 +680,31 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		return
 	}
 
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
 	channel, err := model.GetChannelById(req.ID, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+
+	if !canManageAll && channel.UserId != nil && *channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限更新此渠道的上游模型",
+		})
+		return
+	}
+
 	beforeSettings := channel.GetOtherSettings()
 	ignoredModels := intersectModelNames(req.IgnoreModels, beforeSettings.UpstreamModelUpdateLastDetectedModels)
 
@@ -727,9 +753,28 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 		return
 	}
 
+	userId := c.GetInt("id")
+	canManageAll := false
+	if common.IsRootUser(c.GetInt("role")) {
+		canManageAll = true
+	} else {
+		user, err := model.GetUserById(userId, false)
+		if err == nil && user != nil {
+			canManageAll = user.CanManageChannels
+		}
+	}
+
 	channel, err := model.GetChannelById(req.ID, true)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+
+	if !canManageAll && channel.UserId != nil && *channel.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限检测此渠道的上游模型更新",
+		})
 		return
 	}
 

@@ -204,7 +204,7 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
 		channelRoute := apiRouter.Group("/channel")
-		channelRoute.Use(middleware.AdminAuth())
+		channelRoute.Use(middleware.ChannelManagerAuth())
 		{
 			channelRoute.GET("/", controller.GetAllChannels)
 			channelRoute.GET("/search", controller.SearchChannels)

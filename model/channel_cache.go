@@ -93,10 +93,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, userId int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannel(group, model, retry, userId)
 	}
 
 	channelSyncLock.RLock()
@@ -109,6 +109,23 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
 		channels = group2model2channels[group][normalizedModel]
+	}
+
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	// 过滤渠道：用户只能使用自己的渠道或共享渠道（UserId为nil）
+	if userId > 0 {
+		filteredChannels := make([]int, 0)
+		for _, channelId := range channels {
+			if channel, ok := channelsIDM[channelId]; ok {
+				if channel.UserId == nil || *channel.UserId == userId {
+					filteredChannels = append(filteredChannels, channelId)
+				}
+			}
+		}
+		channels = filteredChannels
 	}
 
 	if len(channels) == 0 {

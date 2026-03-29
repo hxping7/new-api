@@ -53,9 +53,10 @@ const (
 	ChannelTypeSubmodel       = 53
 	ChannelTypeDoubaoVideo    = 54
 	ChannelTypeSora           = 55
-	ChannelTypeReplicate      = 56
-	ChannelTypeCodex          = 57
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	ChannelTypeReplicate         = 56
+	ChannelTypeCodex             = 57
+	ChannelTypeQianfanCodingPlan = 58
+	ChannelTypeDummy             // this one is only for count, do not add any channel after this
 
 )
 
@@ -118,6 +119,7 @@ var ChannelBaseURLs = []string{
 	"https://api.openai.com",                    //55
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
+	"https://qianfan.baidubce.com/v2/coding",    //58
 }
 
 var ChannelTypeNames = map[int]string{
@@ -175,6 +177,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSora:           "Sora",
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "Codex",
+	ChannelTypeQianfanCodingPlan: "QianfanCodingPlan",
 }
 
 func GetChannelTypeName(channelType int) string {

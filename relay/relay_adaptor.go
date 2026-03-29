@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/channel/palm"
 	"github.com/QuantumNous/new-api/relay/channel/perplexity"
+	"github.com/QuantumNous/new-api/relay/channel/qianfan_coding"
 	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
@@ -120,6 +121,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &replicate.Adaptor{}
 	case constant.APITypeCodex:
 		return &codex.Adaptor{}
+	case constant.APITypeQianfanCodingPlan:
+		return &qianfan_coding.Adaptor{}
 	}
 	return nil
 }

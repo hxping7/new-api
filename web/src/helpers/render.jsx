@@ -351,6 +351,7 @@ export function getChannelIcon(channelType) {
       return <DeepSeek.Color size={iconSize} />;
     case 15: // 百度文心千帆
     case 46: // 百度文心千帆V2
+    case 58: // 百度千帆 Coding Plan
       return <Wenxin.Color size={iconSize} />;
     case 17: // 阿里通义千问
       return <Qwen.Color size={iconSize} />;

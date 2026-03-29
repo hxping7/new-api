@@ -43,8 +43,12 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseUrl := info.ChannelBaseUrl
-	if info.RelayFormat == types.RelayFormatClaude {
+	if strings.Contains(baseUrl, "/anthropic/coding") {
 		return fmt.Sprintf("%s/v1/messages", baseUrl), nil
+	}
+	if info.RelayFormat == types.RelayFormatClaude {
+		anthropicBaseUrl := strings.Replace(baseUrl, "/v2/coding", "/anthropic/coding", 1)
+		return fmt.Sprintf("%s/v1/messages", anthropicBaseUrl), nil
 	}
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:

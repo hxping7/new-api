@@ -24,7 +24,7 @@ import type {
   VisibilityState,
   SortingState,
 } from '@tanstack/react-table'
-import { Copy, Plus } from 'lucide-react'
+import { Copy, Plus, Trash2 } from 'lucide-react'
 import {
   useState,
   useMemo,
@@ -47,6 +47,7 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useModelPricing } from '@/features/model-pricing/api'
 import {
   applyPricingDraft,
@@ -165,6 +166,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const editorPanelRef = useRef<ModelPricingEditorPanelHandle>(null)
   // Read through a ref so the table column definitions (and therefore every
   // rendered cell) do not need to be rebuilt each time a row is opened for
@@ -411,8 +413,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
     []
   )
 
-  const handleDelete = useCallback(
-    (name: string) => {
+  const deleteModelNames = useCallback(
+    (names: string[]) => {
+      if (names.length === 0) return
       const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
         fallback: {},
         silent: true,
@@ -454,22 +457,25 @@ const ModelRatioVisualEditorComponent = forwardRef<
         { fallback: {}, silent: true }
       )
 
-      delete priceMap[name]
-      delete ratioMap[name]
-      delete cacheMap[name]
-      delete createCacheMap[name]
-      delete completionMap[name]
-      delete imageMap[name]
-      delete audioMap[name]
-      delete audioCompletionMap[name]
-      delete billingModeMap[name]
-      delete billingExprMap[name]
+      for (const name of names) {
+        delete priceMap[name]
+        delete ratioMap[name]
+        delete cacheMap[name]
+        delete createCacheMap[name]
+        delete completionMap[name]
+        delete imageMap[name]
+        delete audioMap[name]
+        delete audioCompletionMap[name]
+        delete billingModeMap[name]
+        delete billingExprMap[name]
+      }
       const pluginExprMap = safeJsonParse<Record<string, string>>(
         pluginBillingExpr,
         { fallback: {} }
       )
       for (const variant of Object.keys(pluginExprMap)) {
-        if (splitPluginBillingExprKey(variant)?.[1] === name) {
+        const model = splitPluginBillingExprKey(variant)?.[1]
+        if (model && names.includes(model)) {
           delete pluginExprMap[variant]
         }
       }
@@ -498,7 +504,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         JSON.stringify(billingExprMap, null, 2)
       )
 
-      if (editingModelNameRef.current === name) {
+      if (
+        editingModelNameRef.current &&
+        names.includes(editingModelNameRef.current)
+      ) {
         setEditData(null)
         setEditorOpen(false)
         setSheetOpen(false)
@@ -518,6 +527,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
       pluginBillingExpr,
       onChange,
     ]
+  )
+
+  const handleDelete = useCallback(
+    (name: string) => {
+      deleteModelNames([name])
+    },
+    [deleteModelNames]
   )
 
   const columns = useMemo(
@@ -636,6 +652,32 @@ const ModelRatioVisualEditorComponent = forwardRef<
       })
     )
   }, [editData, editorOpen, persistPricingData, t, table])
+
+  const handleBatchDelete = useCallback(() => {
+    const targetNames = table
+      .getFilteredSelectedRowModel()
+      .rows.map((row) => row.original.name)
+
+    if (targetNames.length === 0) {
+      toast.error(t('Select at least one target model'))
+      return
+    }
+
+    setBatchDeleteOpen(true)
+  }, [t, table])
+
+  const confirmBatchDelete = useCallback(() => {
+    const targetNames = table
+      .getFilteredSelectedRowModel()
+      .rows.map((row) => row.original.name)
+
+    deleteModelNames(targetNames)
+    table.resetRowSelection()
+    setBatchDeleteOpen(false)
+    toast.success(
+      t('Deleted pricing for {{count}} models', { count: targetNames.length })
+    )
+  }, [deleteModelNames, t, table])
 
   useImperativeHandle(
     ref,
@@ -824,13 +866,37 @@ const ModelRatioVisualEditorComponent = forwardRef<
       </div>
 
       <DataTableBulkActions table={table} entityName={t('model')}>
-        <Button size='sm' disabled={!editData} onClick={handleBatchCopy}>
-          <Copy data-icon='inline-start' />
-          {editData
-            ? t('Copy {{name}} pricing', { name: editData.name })
-            : t('Open a source model first')}
-        </Button>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button
+            size='sm'
+            variant='destructive'
+            onClick={handleBatchDelete}
+            disabled={filterMode === 'unset'}
+          >
+            <Trash2 data-icon='inline-start' />
+            {t('Delete selected models')}
+          </Button>
+          <Button size='sm' disabled={!editData} onClick={handleBatchCopy}>
+            <Copy data-icon='inline-start' />
+            {editData
+              ? t('Copy {{name}} pricing', { name: editData.name })
+              : t('Open a source model first')}
+          </Button>
+        </div>
       </DataTableBulkActions>
+
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        onOpenChange={setBatchDeleteOpen}
+        title={t('Delete selected models?')}
+        desc={t(
+          'This will remove pricing for all selected models. This cannot be undone.'
+        )}
+        destructive
+        isLoading={isSaving}
+        handleConfirm={confirmBatchDelete}
+        confirmText={t('Delete')}
+      />
 
       {isMobile && (
         <ModelPricingSheet

@@ -7370,6 +7370,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Delete selected models?": "Удалить выбранные модели?",
+    "This will remove pricing for all selected models. This cannot be undone.": "Это удалит цены всех выбранных моделей. Это действие нельзя отменить."
   }
 }

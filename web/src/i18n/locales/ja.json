@@ -7370,6 +7370,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Delete selected models?": "選択したモデルを削除しますか？",
+    "This will remove pricing for all selected models. This cannot be undone.": "選択したすべてのモデルの料金を削除します。この操作は元に戻せません。"
   }
 }

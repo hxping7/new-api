@@ -7370,6 +7370,8 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Delete selected models?": "刪除選定的模型？",
+    "This will remove pricing for all selected models. This cannot be undone.": "這將移除所有所選模型的定價，且無法撤銷。"
   }
 }
